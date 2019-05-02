@@ -1,0 +1,211 @@
+---
+title: "Лабораторная №5"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+Практика 5
+Кросс-валидация и бутстреп.
+Данные: Auto {ISLR}
+Метод перекрёстной проверки.
+```{r first}
+library('ISLR')
+library('GGally')       
+library('lmtest')       
+library('FNN')          
+library('mlbench')
+library('boot')
+
+my.seed <- 1
+head(Auto)
+str(Auto)
+Auto <- Auto[,-c(3,4,8,9)]
+Auto$cylinders <- as.numeric(Auto$cylinders)
+ggpairs(Auto)
+```
+Метод проверочной выборки.
+Построим модели для проверки точности.
+```{r second}
+# общее число наблюдений
+n <- nrow(Auto)
+
+# доля обучающей выборки
+train.percent <- 0.5
+
+# выбрать наблюдения в обучающую выборку
+set.seed(my.seed)
+inTrain <- sample(n, n * train.percent)
+#Линейная модель
+attach(Auto)
+# подгонка линейной модели на обучающей выборке
+
+fit.lm.1 <- lm(mpg ~ weight + acceleration + year + cylinders, 
+               subset = inTrain)
+
+# считаем MSE на тестовой выборке
+mean((mpg[-inTrain] - predict(fit.lm.1, Auto[-inTrain,]))^2)
+detach(Auto)
+#Строим первую квадратичную модель
+attach(Auto)
+# подгонка линейной модели на обучающей выборке
+fit.lm.2 <- lm(mpg ~ poly(weight,2) + acceleration + year + cylinders, 
+               subset = inTrain)
+
+# считаем MSE на тестовой выборке
+mean((mpg[-inTrain] - predict(fit.lm.2, Auto[-inTrain,]))^2)
+detach(Auto)
+#Строим вторую квадратичную модель
+attach(Auto)
+# подгонка линейной модели на обучающей выборке
+fit.lm.3 <- lm(mpg ~ weight + poly(acceleration,2) + year + cylinders, 
+               subset = inTrain)
+
+# считаем MSE на тестовой выборке
+mean((mpg[-inTrain] - predict(fit.lm.3, Auto[-inTrain,]))^2)
+detach(Auto)
+#Строим третью квадратичную модель
+attach(Auto)
+# подгонка линейной модели на обучающей выборке
+fit.lm.4 <- lm(mpg ~ weight + acceleration + poly(year,2) + cylinders, 
+               subset = inTrain)
+
+# считаем MSE на тестовой выборке
+mean((mpg[-inTrain] - predict(fit.lm.4, Auto[-inTrain,]))^2)
+detach(Auto)
+#Строим первую кубическую модель
+attach(Auto)
+# подгонка линейной модели на обучающей выборке
+fit.lm.5 <- lm(mpg ~ poly(weight,3) + acceleration + year + cylinders, 
+               subset = inTrain)
+
+# считаем MSE на тестовой выборке
+mean((mpg[-inTrain] - predict(fit.lm.5, Auto[-inTrain,]))^2)
+detach(Auto)
+#Строим вторую кубическую модель
+attach(Auto)
+# подгонка линейной модели на обучающей выборке
+fit.lm.6 <- lm(mpg ~ weight + poly(acceleration,3) + year + cylinders, 
+               subset = inTrain)
+
+# считаем MSE на тестовой выборке
+mean((mpg[-inTrain] - predict(fit.lm.6, Auto[-inTrain,]))^2)
+detach(Auto)
+#Строим третью кубическую модель
+attach(Auto)
+# подгонка линейной модели на обучающей выборке
+fit.lm.7 <- lm(mpg ~ weight + acceleration + poly(year,3) + cylinders, 
+               subset = inTrain)
+
+# считаем MSE на тестовой выборке
+mean((mpg[-inTrain] - predict(fit.lm.7, Auto[-inTrain,]))^2)
+detach(Auto)
+```
+Ошибка первой квадратичной модели оказалась наименьшей из всех построенных, следовательно она и будет являться наиболее пригодной для прогнозирования.
+Перекрёстная проверка по отдельным наблюдениям (LOOCV).
+Теперь оценим точность полиномиальных моделей, меняя степень, в которой стоит регрессор.
+k-кратная перекрёстная проверка. 
+Проведём 5-кратную и 10-кратную кросс-валидацию моделей разных степеней вида модели  (“mpg ~ poly(weight,i) + acceleration + year + cylinders”), так как предыдущий пункт показал, что ошибки в данном случае оказались ниже.
+```{r third}
+# подгонка линейной модели на обучающей выборке
+fit.glm <- glm(mpg ~ weight + acceleration + year + cylinders, 
+               data = Auto)
+# считаем LOOCV-ошибку
+cv.err <- cv.glm(Auto, fit.glm)
+# результат: первое число -- по формуле LOOCV-ошибки,
+#  второе -- с поправкой на смещение
+cv.err$delta[1]
+
+# вектор с LOOCV-ошибками
+cv.err.loocv <- rep(0, 5)
+names(cv.err.loocv) <- 1:5
+# цикл по степеням полиномов
+for (i in 1:5) {
+  fit.glm <- glm(mpg ~ poly(weight,i) + acceleration + year + cylinders,
+                 data = Auto)
+  cv.err.loocv[i] <- cv.glm(Auto, fit.glm)$delta[1]
+}
+# результат
+cv.err.loocv
+
+# вектор с LOOCV-ошибками
+cv.err.loocv <- rep(0, 5)
+names(cv.err.loocv) <- 1:5
+# цикл по степеням полиномов
+for (i in 1:5) {
+  fit.glm <- glm(mpg ~ weight + poly(acceleration,i) + year + cylinders,
+                 data = Auto)
+  cv.err.loocv[i] <- cv.glm(Auto, fit.glm)$delta[1]
+}
+# результат
+cv.err.loocv
+
+# вектор с LOOCV-ошибками
+cv.err.loocv <- rep(0, 5)
+names(cv.err.loocv) <- 1:5
+# цикл по степеням полиномов
+for (i in 1:5) {
+  fit.glm <- glm(mpg ~ weight + acceleration + poly(year,i) + cylinders,
+                 data = Auto)
+  cv.err.loocv[i] <- cv.glm(Auto, fit.glm)$delta[1]
+}
+# результат
+cv.err.loocv
+
+# оценим точность полиномиальных моделей, меняя степень
+# вектор с ошибками по 5-кратной кросс-валидации
+cv.err.k.fold <- rep(0, 5)
+names(cv.err.k.fold) <- 1:5
+# цикл по степеням полиномов
+for (i in 1:5) {
+  fit.glm <- glm(mpg ~ poly(weight,i) + acceleration + year + cylinders,
+                 data = Auto)
+  cv.err.k.fold[i] <- cv.glm(Auto, fit.glm,
+                             K = 5)$delta[1]
+}
+# результат
+cv.err.k.fold
+
+# оценим точность полиномиальных моделей, меняя степень
+# вектор с ошибками по 10-кратной кросс-валидации
+cv.err.k.fold <- rep(0, 10)
+names(cv.err.k.fold) <- 1:10
+# цикл по степеням полиномов
+for (i in 1:10) {
+  fit.glm <- glm(mpg ~ poly(weight,i) + acceleration + year + cylinders,
+                 data = Auto)
+  cv.err.k.fold[i] <- cv.glm(Auto, fit.glm,
+                             K = 10)$delta[1]
+}
+# результат
+cv.err.k.fold
+```
+Ошибка вне выборки у линейной модели выше, чем показывала MSE на тестовой выборке. Модели со степенями 2 и 3 на самом деле точнее, чем показывала MSE без перекрёстной проверки.
+```{r fourth}
+boot.fn <- function(data, index){
+  coef(lm(mpg ~ weight + acceleration + year+ cylinders,
+          data = data, subset = index))
+}
+boot.fn(Auto, 1:n)
+# пример применения функции к бутстреп-выборке
+set.seed(1)
+boot.fn(Auto, sample(n, n , replace = T))
+# применяем функцию boot для вычисления стандартных ошибок параметров
+#  (1000 выборок с повторами)
+boot(Auto, boot.fn, 1000)
+# сравним с МНК
+attach(Auto)
+summary(lm(mpg ~ weight + acceleration + year + cylinders))$coef
+detach(Auto)
+#оценим наилучшую найденную модель
+boot.fn.2 <- function(data, index){
+  coef(lm(mpg ~ poly(weight,2) + acceleration + year + cylinders, 
+          data = data, subset = index))
+}
+# применим функцию к 1000 бутсреп-выборкам
+set.seed(my.seed)
+boot(Auto, boot.fn.2, 1000)
+
+```
+В модели регрессии, для которой проводился расчёт, похоже, не нарушаются требования к остаткам, и оценки стандартных ошибок параметров, рассчитанные по МНК, очень близки к ошибкам этих же параметров, полученных бутстрепом.
